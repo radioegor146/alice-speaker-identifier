@@ -2,4 +2,5 @@ model_files/
 .venv/
 .idea/
 voiceprints/
+__pycache__
 speaker_embeddings.json
