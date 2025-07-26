@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import uvicorn
 
-from models.ecapa_tdnn_embedder import create_ecapa_tdnn_embedder_from_env
+from models.nemo_enc_dec_embedder import create_nemo_enc_dec_embedder_from_env
 from models.vosk_embedder import create_vosk_embedding_model_from_env
 from utils import f32_samples_to_s16_bytes, s16_bytes_to_f32_samples
 
@@ -24,12 +24,12 @@ SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.5"))
 SPEAKER_EMBEDDINGS_FILE = os.getenv("SPEAKER_EMBEDDINGS_FILE", "speaker_embeddings.json")
 VOICEPRINTS_DIR = os.getenv("VOICEPRINTS_DIR")
 GAIN = float(os.getenv("GAIN", "90"))
-EMBEDDER = os.getenv("EMBEDDER", "ecapa-tdnn")
+EMBEDDER = os.getenv("EMBEDDER", "nemo-enc-dec")
 
 sample_rate = 16000
 
 embedders = {
-    "ecapa-tdnn": create_ecapa_tdnn_embedder_from_env,
+    "nemo-enc-dec": create_nemo_enc_dec_embedder_from_env,
     "vosk": create_vosk_embedding_model_from_env
 }
 
