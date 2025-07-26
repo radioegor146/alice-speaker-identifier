@@ -1,0 +1,5 @@
+model_files/
+.venv/
+.idea/
+voiceprints/
+speaker_embeddings.json

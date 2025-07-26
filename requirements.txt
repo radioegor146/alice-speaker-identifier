@@ -1,0 +1,7 @@
+cachetools
+numpy
+fastapi
+pydantic
+uvicorn
+vosk
+nemo_toolkit[asr]
