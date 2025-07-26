@@ -12,6 +12,7 @@ import uvicorn
 
 from models.nemo_enc_dec_embedder import create_nemo_enc_dec_embedder_from_env
 from models.vosk_embedder import create_vosk_embedding_model_from_env
+from models.yandex_ecapa_tdnn_embedder import create_yandex_ecapa_tdnn_embedding_model_from_env
 from utils import f32_samples_to_s16_bytes, s16_bytes_to_f32_samples
 
 HOST = os.getenv("HOST", "0.0.0.0")
@@ -20,17 +21,18 @@ AUDIO_CACHE_SIZE = int(os.getenv("AUDIO_CACHE_SIZE", "50"))
 AUDIO_CACHE_TTL_SECONDS = int(os.getenv("AUDIO_CACHE_TTL_SECONDS", "600"))
 VOICE_ENROLLMENT_CACHE_SIZE = int(os.getenv("VOICE_ENROLLMENT_CACHE_SIZE", "100"))
 VOICE_ENROLLMENT_CACHE_TTL_SECONDS = int(os.getenv("VOICE_ENROLLMENT_CACHE_TTL_SECONDS", "1800"))
-SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.5"))
+SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.85"))
 SPEAKER_EMBEDDINGS_FILE = os.getenv("SPEAKER_EMBEDDINGS_FILE", "speaker_embeddings.json")
 VOICEPRINTS_DIR = os.getenv("VOICEPRINTS_DIR")
-GAIN = float(os.getenv("GAIN", "90"))
-EMBEDDER = os.getenv("EMBEDDER", "nemo-enc-dec")
+GAIN = float(os.getenv("GAIN", "200"))
+EMBEDDER = os.getenv("EMBEDDER", "yandex-ecapa-tdnn")
 
 sample_rate = 16000
 
 embedders = {
     "nemo-enc-dec": create_nemo_enc_dec_embedder_from_env,
-    "vosk": create_vosk_embedding_model_from_env
+    "vosk": create_vosk_embedding_model_from_env,
+    "yandex-ecapa-tdnn": create_yandex_ecapa_tdnn_embedding_model_from_env,
 }
 
 if not EMBEDDER in embedders:
@@ -94,7 +96,7 @@ def save_voiceprint_wav(context_id: str, samples: np.ndarray):
             wf.setnchannels(1)
             wf.setsampwidth(2)
             wf.setframerate(sample_rate)
-            wf.writeframes(f32_samples_to_s16_bytes(samples))
+            wf.writeframes(f32_samples_to_s16_bytes(samples / GAIN))
         logger.info(f"voiceprint_saved path={path} context_id={context_id}")
     except Exception as e:
         logger.exception(f"voiceprint_save_failed context_id={context_id}: {e}")
@@ -155,7 +157,7 @@ def save_speaker_embeddings_to_file():
 
 def load_speaker_embeddings_from_file():
     try:
-        with open(SPEAKER_EMBEDDINGS_FILE, "r") as f:
+        with open(SPEAKER_EMBEDDINGS_FILE, "r", encoding="utf8") as f:
             data = json.load(f)
         for sid, entry in data.items():
             emb_list = entry.get("embedding")
@@ -174,7 +176,8 @@ load_speaker_embeddings_from_file()
 
 
 def convert_and_normalize_input(raw: bytes) -> np.ndarray:
-    return s16_bytes_to_f32_samples(raw) * GAIN
+    f32_samples = s16_bytes_to_f32_samples(raw)
+    return f32_samples / np.max(f32_samples) * GAIN
 
 
 @app.post("/audio-metadata", response_class=JSONResponse)
@@ -261,6 +264,7 @@ async def get_state(payload: GetFunctionsOrStatePayload):
             value = "voice not saved and unknown"
         else:
             value = val[1]
+    print(value)
     return {
         "voiceprint_user_comment": {
             "description": "comment of user voiceprint if they have saved their voice before",

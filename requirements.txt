@@ -5,3 +5,5 @@ pydantic
 uvicorn
 vosk
 nemo_toolkit[asr]
+tensorflow
+kaldi-native-fbank
