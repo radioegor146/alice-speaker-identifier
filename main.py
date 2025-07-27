@@ -138,7 +138,7 @@ def match_speaker(embedding: np.ndarray) -> (str, float):
     for sid, ref in speaker_embeddings.items():
         ref_emb = ref[0]
         sim = cosine_similarity(embedding, ref_emb)
-        logger.info(f"cosine_similarity sid={sid} sim={sim}")
+        logger.info(f"cosine_similarity sid={sid} sim={sim} comment={ref[1]}")
         if sim > best_sim:
             best_sim = sim
             best_id = sid
