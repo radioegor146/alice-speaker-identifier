@@ -205,7 +205,7 @@ async def audio_metadata(request: Request, req_sample_rate: int = Query(..., ali
     return {"recordId": record_id, "speakerId": speaker_id}
 
 
-@app.post("/functions", response_class=JSONResponse)
+@app.get("/functions", response_class=JSONResponse)
 async def list_functions():
     return {
         "save_voice_sample_enrollment": {
@@ -252,6 +252,9 @@ async def get_saved_embeddings():
     items = [{"id": sid, "comment": val[1]} for sid, val in speaker_embeddings.items()]
     return {"embeddings": items}
 
+@app.get("/state", response_class=JSONResponse)
+async def get_independent_state():
+    return {}
 
 @app.post("/state", response_class=JSONResponse)
 async def get_state(payload: GetFunctionsOrStatePayload):
