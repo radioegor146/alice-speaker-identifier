@@ -52,38 +52,33 @@ if not logger.handlers:
 
 app = FastAPI()
 
-
-class SessionContext(BaseModel):
-    id: str
-    metadata: dict
-
-
 class GetFunctionsOrStatePayload(BaseModel):
-    context: SessionContext
+    metadata: dict
+    sessionId: str
 
 
 class FunctionCallPayload(BaseModel):
-    context: SessionContext
+    metadata: str
+    sessionId: str
     name: str
     parameters: dict
 
 
-def save_voice_sample_enrollment(context: SessionContext):
-    meta = context.metadata or {}
+def save_voice_sample_enrollment(sessionId: str, meta: dict):
     record_id = meta.get("recordId")
     if record_id is None:
-        logger.warning(f"save_voice_sample_enrollment missing recordId: context_id={context.id}, metadata={meta}")
+        logger.warning(f"save_voice_sample_enrollment missing recordId: session_id={sessionId}, metadata={meta}")
         return
     sample = audio_cache.get(record_id)
     if sample is None:
         logger.warning(
-            f"save_voice_sample_enrollment record not found or expired: context_id={context.id}, recordId={record_id}")
+            f"save_voice_sample_enrollment record not found or expired: session_id={sessionId}, recordId={record_id}")
         return
-    samples = voice_enrollment_cache.get(context.id) or []
+    samples = voice_enrollment_cache.get(sessionId) or []
     samples.append(sample)
-    voice_enrollment_cache[context.id] = samples
+    voice_enrollment_cache[sessionId] = samples
     logger.info(
-        f"save_voice_sample_enrollment context_id={context.id} recordId={record_id} samples_count={len(samples)}")
+        f"save_voice_sample_enrollment session_id={sessionId} recordId={record_id} samples_count={len(samples)}")
 
 
 def save_voiceprint_wav(context_id: str, samples: np.ndarray):
@@ -97,28 +92,28 @@ def save_voiceprint_wav(context_id: str, samples: np.ndarray):
             wf.setsampwidth(2)
             wf.setframerate(sample_rate)
             wf.writeframes(f32_samples_to_s16_bytes(samples / GAIN))
-        logger.info(f"voiceprint_saved path={path} context_id={context_id}")
+        logger.info(f"voiceprint_saved path={path} session_id={context_id}")
     except Exception as e:
-        logger.exception(f"voiceprint_save_failed context_id={context_id}: {e}")
+        logger.exception(f"voiceprint_save_failed session_id={context_id}: {e}")
 
 
-def finish_voice_sample_enrollment(context: SessionContext, comment: str):
-    save_voice_sample_enrollment(context)
-    samples = voice_enrollment_cache.get(context.id) or []
+def finish_voice_sample_enrollment(session_id: str, meta: dict, comment: str):
+    save_voice_sample_enrollment(session_id, meta)
+    samples = voice_enrollment_cache.get(session_id) or []
     if not samples:
-        logger.warning(f"finish_voice_sample_enrollment no samples: context_id={context.id} comment={comment}")
+        logger.warning(f"finish_voice_sample_enrollment no samples: session_id={session_id} comment={comment}")
         return
     data = np.concatenate(samples)
-    save_voiceprint_wav(context.id, data)
+    save_voiceprint_wav(session_id, data)
     emb = model.extract_embeddings(data)
     if emb is None:
-        logger.warning(f"finish_voice_sample_enrollment embedding_failed: context_id={context.id} comment={comment}")
+        logger.warning(f"finish_voice_sample_enrollment embedding_failed: session_id={session_id} comment={comment}")
         return
-    speaker_embeddings[context.id] = (emb, comment)
+    speaker_embeddings[session_id] = (emb, comment)
     save_speaker_embeddings_to_file()
-    voice_enrollment_cache.pop(context.id, None)
+    voice_enrollment_cache.pop(session_id, None)
     logger.info(
-        f"finish_voice_sample_enrollment context_id={context.id} samples_count={len(samples)} comment={comment}")
+        f"finish_voice_sample_enrollment session_id={session_id} samples_count={len(samples)} comment={comment}")
 
 
 def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
@@ -233,13 +228,13 @@ async def update_function(payload: FunctionCallPayload):
         name = payload.name
         params = payload.parameters or {}
         if name == "save_voice_sample_enrollment":
-            save_voice_sample_enrollment(payload.context)
+            save_voice_sample_enrollment(payload.sessionId, payload.metadata)
             return Response(status_code=200)
         if name == "finish_voice_sample_enrollment":
             comment = params.get("comment")
             if comment is None or (isinstance(comment, str) and comment.strip() == ""):
                 return JSONResponse(status_code=400, content={"error": "comment is required"})
-            finish_voice_sample_enrollment(payload.context, str(comment))
+            finish_voice_sample_enrollment(payload.sessionId, payload.metadata, str(comment))
             return Response(status_code=200)
         return JSONResponse(status_code=400, content={"error": "unknown function"})
     except Exception as e:
@@ -258,7 +253,7 @@ async def get_independent_state():
 
 @app.post("/state", response_class=JSONResponse)
 async def get_state(payload: GetFunctionsOrStatePayload):
-    meta = payload.context.metadata or {}
+    meta = payload.metadata or {}
     voice_id = meta.get("speakerId")
     if not voice_id:
         value = "voice not saved and unknown"
