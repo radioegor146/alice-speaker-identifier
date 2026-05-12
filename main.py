@@ -247,7 +247,7 @@ async def get_saved_embeddings():
     items = [{"id": sid, "comment": val[1]} for sid, val in speaker_embeddings.items()]
     return {"embeddings": items}
 
-@app.get("/state", response_class=JSONResponse)
+@app.put("/state", response_class=JSONResponse)
 async def get_independent_state():
     return {}
 
